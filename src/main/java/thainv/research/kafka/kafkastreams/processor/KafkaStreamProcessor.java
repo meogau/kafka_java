@@ -22,7 +22,7 @@ public class KafkaStreamProcessor {
 
     public KafkaStreamProcessor(StreamsBuilder streamsBuilder) {
         // source
-        String sourceTopic = "ks_source_topic";
+        String sourceTopic = "source_test";
         KStream<String, KSMessage> stream = streamsBuilder.stream(sourceTopic,
                 Consumed.with(Serdes.String(),
                         new MessageSerde<>(new MessageDeserialization<>(KSMessage.class), new MessageSerialization<>())));
@@ -32,7 +32,7 @@ public class KafkaStreamProcessor {
                 .groupBy((_, value) -> value.getConsoleKey(), Grouped.with(Serdes.String(), new JsonSerde<>(KSMessage.class)));
 
         // Define a custom time window of 30 seconds
-        TimeWindows timeWindows = TimeWindows.ofSizeWithNoGrace(Duration.ofSeconds(30));
+        TimeWindows timeWindows = TimeWindows.ofSizeAndGrace(Duration.ofSeconds(1),Duration.ofSeconds(1));
 
         // Aggregate sum
         KTable<Windowed<String>, Long> aggregatedTable = groupedStream
@@ -42,9 +42,11 @@ public class KafkaStreamProcessor {
                         (_, value, aggValue) -> aggValue + value.getValue(),
                         Materialized.<String, Long, WindowStore<Bytes, byte[]>>as("aggregate-store")
                                 .withValueSerde(Serdes.Long())
-                );
+                )
+                .suppress(Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded()))
+                ;
         // sink
-        String sinkTopic = "ks_sink_topic";
+        String sinkTopic = "sink";
         aggregatedTable
                 .toStream()
                 .map((windowedKey, sumValue) -> new KeyValue<>(windowedKey.key(), new KSMessage(windowedKey.key(), sumValue)))

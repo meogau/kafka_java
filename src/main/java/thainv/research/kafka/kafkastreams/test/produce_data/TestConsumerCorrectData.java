@@ -1,6 +1,5 @@
 package thainv.research.kafka.kafkastreams.test.produce_data;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -18,17 +17,21 @@ public class TestConsumerCorrectData {
     private final Map<String, Long> map = new HashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @KafkaListener(topics = "ks_sink_topic", groupId = "ks_correct_group")
+    @KafkaListener(topics = "sink", groupId = "ks_correct_group")
     public void listen(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
         try {
             KSMessage message = objectMapper.convertValue(record.value(), KSMessage.class);
-            if (map.containsKey(message.getConsoleKey()))
-                map.put(message.getConsoleKey(), map.get(message.getConsoleKey()) + message.getValue());
-            else map.put(message.getConsoleKey(), message.getValue());
-            printData();
+            handleMessage(message);
         } finally {
             acknowledgment.acknowledge();
         }
+    }
+
+    synchronized void handleMessage(KSMessage message) {
+        if (map.containsKey(message.getConsoleKey()))
+            map.put(message.getConsoleKey(), map.get(message.getConsoleKey()) + message.getValue());
+        else map.put(message.getConsoleKey(), message.getValue());
+        printData();
     }
 
     void printData(){
